@@ -148,6 +148,22 @@ const add = (input) => {
   saveExpenseTracker(expenseTrackerData);
 };
 
+const toPascalCase = (str) => str.charAt(0).toUpperCase() + str.slice(1)
+
+const toPascalCaseKeys = (data) => {
+  return data.map((obj) => {
+    const newObject = {}
+    for(const key in obj) {
+      newObject[toPascalCase(key)] = obj[key]
+    }
+    return newObject
+  })
+}
+
+const list = () => {
+  console.table(toPascalCaseKeys(expenseTrackerData))
+}
+
 const main = async () => {
   process.stdin.on("data", async (data) => {
     const command = extractInput(data)[0];
@@ -158,6 +174,7 @@ const main = async () => {
 
         const handler = {
           add: add,
+          list: list
         };
 
         await handler[action]?.(extractInput(data).slice(2));
