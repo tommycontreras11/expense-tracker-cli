@@ -21,22 +21,79 @@ const saveExpenseTracker = async (data) => {
   await fs.writeFile(FILE_PATH, JSON.stringify(data), "utf8");
 };
 
-const getPropertyAndValue = (input) => {
+const getPropertyAndValue = (
+  input,
+  property,
+  value,
+  startWithQuote,
+  foundFinalValue,
+) => {
   if (input.startsWith("--")) property = input.split("--")[1];
-    else {
-      if (input.endsWith('"')) {
-        value += input;
-        startWithQuote = false;
-        foundFinalValue = true;
-      } else if (input.startsWith('"') || startWithQuote) {
-        value += input + " ";
-        startWithQuote = true;
-      } else {
-        value = input;
-        foundFinalValue = true;
-      }
+  else {
+    if (input.endsWith('"')) {
+      value += input;
+      startWithQuote = false;
+      foundFinalValue = true;
+    } else if (input.startsWith('"') || startWithQuote) {
+      value += input + " ";
+      startWithQuote = true;
+    } else {
+      value = input;
+      foundFinalValue = true;
     }
-}
+  }
+
+  return {
+    property,
+    value,
+    startWithQuote,
+    foundFinalValue,
+  };
+};
+
+const saveExpenseTrackerOnMap = (
+  map,
+  value,
+  property,
+  index,
+  count,
+  countProperties,
+  id,
+) => {
+  const replaceSlashAndQuote = value.includes('\"')
+    ? value.replaceAll('\"', "")
+    : value;
+
+  if (map.has(index)) {
+    const valueAtIndex = map.get(index);
+    valueAtIndex[property] = replaceSlashAndQuote;
+    if (count == countProperties) {
+      index = 0;
+      count = 0;
+    }
+  } else {
+    map.set(id, {
+      [property]: replaceSlashAndQuote,
+    });
+    index = id;
+    count += 1;
+  }
+
+  return {
+    value,
+    property,
+    index,
+    count,
+    countProperties,
+  };
+};
+
+const clearValues = (value, property, foundFinalValue, startWithQuote) => {
+  value = "";
+  property = "";
+  foundFinalValue = false;
+  startWithQuote = false;
+};
 
 const extractKeyAndValue = (input) => {
   const map = new Map();
@@ -50,45 +107,27 @@ const extractKeyAndValue = (input) => {
   let count = 0;
 
   for (let i = 0; i < input.length; i++) {
-    if (input[i].startsWith("--")) property = input[i].split("--")[1];
-    else {
-      if (input[i].endsWith('"')) {
-        value += input[i];
-        startWithQuote = false;
-        foundFinalValue = true;
-      } else if (input[i].startsWith('"') || startWithQuote) {
-        value += input[i] + " ";
-        startWithQuote = true;
-      } else {
-        value = input[i];
-        foundFinalValue = true;
-      }
-    }
+    ({ property, value, startWithQuote, foundFinalValue } = getPropertyAndValue(
+      input[i],
+      property,
+      value,
+      startWithQuote,
+      foundFinalValue,
+    ));
 
     if (foundFinalValue && !startWithQuote) {
-      const replaceSlashAndQuote = value.includes('\"')
-        ? value.replaceAll('\"', "")
-        : value;
+      ({ value, property, index, count, countProperties } =
+        saveExpenseTrackerOnMap(
+          map,
+          value,
+          property,
+          index,
+          count,
+          countProperties,
+          expenseTrackerData.length + 1,
+        ));
 
-      if (map.has(index)) {
-        const valueAtIndex = map.get(index);
-        valueAtIndex[property] = replaceSlashAndQuote;
-        if (count == countProperties) {
-          index = 0;
-          count = 0;
-        }
-      } else {
-        map.set(expenseTrackerData.length + 1, {
-          [property]: replaceSlashAndQuote,
-        });
-        index = expenseTrackerData.length + 1;
-        count += 1;
-      }
-
-      value = "";
-      property = "";
-      foundFinalValue = false;
-      startWithQuote = false;
+        clearValues(value, property, foundFinalValue, startWithQuote)
     }
   }
 
