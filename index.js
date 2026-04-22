@@ -38,7 +38,7 @@ const getPropertyAndValue = (
       value += input + " ";
       startWithQuote = true;
     } else {
-      value = input;
+      value = parseInt(input);
       foundFinalValue = true;
     }
   }
@@ -60,9 +60,9 @@ const saveExpenseTrackerOnMap = (
   countProperties,
   id,
 ) => {
-  const replaceSlashAndQuote = value.includes('\"')
+  const replaceSlashAndQuote = isNaN(value) ? value.includes('\"')
     ? value.replaceAll('\"', "")
-    : value;
+    : value : value;
 
   if (map.has(index)) {
     const valueAtIndex = map.get(index);
@@ -141,11 +141,13 @@ const add = (input) => {
     (value) =>
       (expenseTrackerData = [
         ...expenseTrackerData,
-        { ...value, id: expenseTrackerData.length + 1 },
+        { ...value, id: expenseTrackerData.length + 1, date: new Date().toISOString().split("T")[0] },
       ]),
   );
 
   saveExpenseTracker(expenseTrackerData);
+
+  console.log(`Expense added successfully (ID: ${expenseTrackerData.length})`)
 };
 
 const toPascalCase = (str) => str.charAt(0).toUpperCase() + str.slice(1)
@@ -164,6 +166,11 @@ const list = () => {
   console.table(toPascalCaseKeys(expenseTrackerData))
 }
 
+const summary = () => {
+  const total = expenseTrackerData.reduce((acc, current) => acc + current.amount, 0)
+  console.log(`Total expenses: $${total}`)
+}
+
 const main = async () => {
   process.stdin.on("data", async (data) => {
     const command = extractInput(data)[0];
@@ -174,7 +181,8 @@ const main = async () => {
 
         const handler = {
           add: add,
-          list: list
+          list: list,
+          summary: summary
         };
 
         await handler[action]?.(extractInput(data).slice(2));
