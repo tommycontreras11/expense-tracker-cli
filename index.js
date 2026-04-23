@@ -166,9 +166,19 @@ const list = () => {
   console.table(toPascalCaseKeys(expenseTrackerData))
 }
 
-const summary = () => {
+const summary = () => {  
   const total = expenseTrackerData.reduce((acc, current) => acc + current.amount, 0)
   console.log(`Total expenses: $${total}`)
+}
+
+const remove = (input) => {  
+  const value = extractKeyAndValue(input);
+  let id = 0
+
+  value.forEach((i) => id = i.id)
+
+  expenseTrackerData = expenseTrackerData.filter((e) => e.id != id)
+  saveExpenseTracker(expenseTrackerData)
 }
 
 const main = async () => {
@@ -182,7 +192,8 @@ const main = async () => {
         const handler = {
           add: add,
           list: list,
-          summary: summary
+          summary: summary,
+          delete: remove
         };
 
         await handler[action]?.(extractInput(data).slice(2));
