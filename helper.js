@@ -236,13 +236,21 @@ export const update = (input) => {
     id = i.id;
     amount = i.amount;
     description = i.description;
-
-    console.log(`${i.id} ${i.amount} ${i.description}`);
   });
 
   let index = expenseTrackerData.findIndex((e) => e.id == id);
   expenseTrackerData[index].amount = amount;
   expenseTrackerData[index].description = description;
 
+  saveExpenseTracker(expenseTrackerData);
+};
+
+export const remove = (input) => {
+  const value = extractKeyAndValue(input);
+  let id = 0;
+
+  value.forEach((i) => (id = i.id));
+
+  expenseTrackerData = expenseTrackerData.filter((e) => e.id != id);
   saveExpenseTracker(expenseTrackerData);
 };
