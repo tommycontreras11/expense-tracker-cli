@@ -1,4 +1,4 @@
-import { extractInput, add, list, summary, update, remove, createAndReturnDataFileIfNotExists } from "./helper.js"
+import { extractInput, add, list, summary, filter, update, remove, createAndReturnDataFileIfNotExists } from "./helper.js"
 
 const main = async () => {
   process.stdin.on("data", async (data) => {
@@ -12,6 +12,7 @@ const main = async () => {
           add: add,
           list: list,
           summary: summary,
+          filter: filter,
           update: update,
           delete: remove
         };

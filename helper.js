@@ -228,19 +228,32 @@ export const summary = async (input) => {
   );
 };
 
+export const filter = async (input) => {
+    const value = extractKeyAndValue(input)
+    let category = ""
+
+    value.forEach((item) => category = item.category)
+    await createAndReturnDataFileIfNotExists();
+    let expenseTracker = [...expenseTrackerData]
+
+    let dataFiltered = expenseTracker.filter((item) => (item.category.toLowerCase()) == category.toLowerCase())
+
+    console.log(dataFiltered)
+}
+
 export const update = (input) => {
   const value = extractKeyAndValue(input);
   let id = 0;
   let amount = 0;
   let description = "";
 
-  value.forEach((i) => {
-    id = i.id;
-    amount = i.amount;
-    description = i.description;
+  value.forEach((item) => {
+    id = item.id;
+    amount = item.amount;
+    description = item.description;
   });
 
-  let index = expenseTrackerData.findIndex((e) => e.id == id);
+  let index = expenseTrackerData.findIndex((item) => item.id == id);
   expenseTrackerData[index].amount = amount;
   expenseTrackerData[index].description = description;
   expenseTrackerData[index].date = new Date().toISOString().split("T")[0];
