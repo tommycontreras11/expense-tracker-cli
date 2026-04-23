@@ -3,6 +3,21 @@ import fs from "fs/promises";
 let expenseTrackerData = [];
 const FILE_PATH = "./expense-tracker.json";
 
+const months = new Map([
+  [1, "January"],
+  [2, "February"],
+  [3, "March"],
+  [4, "April"],
+  [5, "May"],
+  [6, "June"],
+  [7, "July"],
+  [8, "August"],
+  [9, "September"],
+  [10, "October"],
+  [11, "November"],
+  [12, "December"]
+]);
+
 const createAndReturnDataFileIfNotExists = async () => {
   let data = "";
 
@@ -166,9 +181,22 @@ const list = () => {
   console.table(toPascalCaseKeys(expenseTrackerData))
 }
 
-const summary = () => {  
-  const total = expenseTrackerData.reduce((acc, current) => acc + current.amount, 0)
-  console.log(`Total expenses: $${total}`)
+const summary = (input) => {
+  const value = extractKeyAndValue(input);
+  let total = 0
+  let month = 0
+
+  let summary = []
+  summary = [...expenseTrackerData]
+
+  if(value.size > 0) {
+    value.forEach((i) => month = i.month)
+
+    summary = summary.filter((s) => s.date.split("-")[1] == (month > 9 ? month : `0${month}`))
+  }
+
+  total = summary.reduce((acc, current) => acc + current.amount, 0)
+  console.log(`Total expenses${value.size > 0 ? ` for ${months.get(month)}` : ""}: $${total}`)
 }
 
 const remove = (input) => {  
