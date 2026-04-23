@@ -216,7 +216,9 @@ export const summary = async (input) => {
     value.forEach((i) => (month = i.month));
 
     summary = summary.filter(
-      (s) => s.date.split("-")[1] == (month > 9 ? month : `0${month}`),
+      (s) =>
+        s.date.split("-")[1] == (month > 9 ? month : `0${month}`) &&
+        s.date.split("-")[0] == new Date().getFullYear(),
     );
   }
 
