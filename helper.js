@@ -243,6 +243,7 @@ export const update = (input) => {
   let index = expenseTrackerData.findIndex((e) => e.id == id);
   expenseTrackerData[index].amount = amount;
   expenseTrackerData[index].description = description;
+  expenseTrackerData[index].date = new Date().toISOString().split("T")[0];
 
   saveExpenseTracker(expenseTrackerData);
 };
