@@ -40,13 +40,13 @@ export const createAndReturnDataFileIfNotExists = async () => {
   try {
     data = await fs.readFile(FILE_PATH, "utf8");
   } catch (error) {
-    if (error.code == "ENOENT") await saveExpenseTracker([]);
+    if (error.code == "ENOENT") await saveInfoInFile([]);
   }
 
   if (data) expenseTrackerData = JSON.parse(data);
 };
 
-const saveExpenseTracker = async (data) => {
+const saveInfoInFile = async (data) => {
   await fs.writeFile(FILE_PATH, JSON.stringify(data), "utf8");
 };
 
@@ -78,22 +78,18 @@ const saveExpenseTrackerOnMap = (
   countProperties,
   id,
 ) => {
-  const replaceSlashAndQuote = isNaN(value)
-    ? value.includes('\"')
-      ? value.replaceAll('\"', "")
-      : value
-    : value;
+  const finalValue = replaceSlashAndQuote(value)
 
   if (map.has(index)) {
     const valueAtIndex = map.get(index);
-    valueAtIndex[property] = replaceSlashAndQuote;
+    valueAtIndex[property] = finalValue;
     if (count == countProperties) {
       index = 0;
       count = 0;
     }
   } else {
     map.set(id, {
-      [property]: replaceSlashAndQuote,
+      [property]: finalValue,
     });
     index = id;
     count += 1;
@@ -104,6 +100,14 @@ const saveExpenseTrackerOnMap = (
     count,
   };
 };
+
+const replaceSlashAndQuote = (value) => {
+  return isNaN(value)
+    ? value.includes('\"')
+      ? value.replaceAll('\"', "")
+      : value
+    : value;
+}
 
 const extractKeyAndValue = (input) => {
   const map = new Map();
@@ -152,7 +156,7 @@ export const add = (input) => {
       ]),
   );
 
-  saveExpenseTracker(expenseTrackerData);
+  saveInfoInFile(expenseTrackerData);
 
   console.log(`Expense added successfully (ID: ${expenseTrackerData.length})`);
 };
@@ -219,7 +223,7 @@ export const update = (input) => {
   expenseTrackerData[index].description = description;
   expenseTrackerData[index].date = new Date().toISOString().split("T")[0];
 
-  saveExpenseTracker(expenseTrackerData);
+  saveInfoInFile(expenseTrackerData);
 };
 
 export const remove = (input) => {
@@ -229,5 +233,5 @@ export const remove = (input) => {
   value.forEach((i) => (id = i.id));
 
   expenseTrackerData = expenseTrackerData.filter((e) => e.id != id);
-  saveExpenseTracker(expenseTrackerData);
+  saveInfoInFile(expenseTrackerData);
 };
