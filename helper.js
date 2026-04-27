@@ -18,6 +18,11 @@ const months = new Map([
   [12, "December"],
 ]);
 
+let budgets = []
+months.forEach((value) => {
+  budgets.push({ month: value, budget: 0 })
+})
+
 const toPascalCase = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 const toPascalCaseKeys = (data) => {
@@ -205,6 +210,31 @@ export const filter = async (input) => {
 
   console.log(dataFiltered);
 };
+
+export const budget = (input) => {
+  const value = extractKeyAndValue(input);
+  let month, amount = 0;
+
+  value.forEach((item) => {
+    month = months.get(item.month)
+    amount = item.amount
+  });
+
+  let budgetFilteredByMonth = budgets.find((item) => item.month == month)
+  budgetFilteredByMonth.budget += amount
+}
+
+export const filterBudgetByMonth = (input) => {
+  const value = extractKeyAndValue(input);
+  let month = 0;
+
+  value.forEach((item) => {
+    month = months.get(item.month)
+  });
+
+  let budgetFilteredByMonth = budgets.filter((item) => item.month == month)
+  console.log(budgetFilteredByMonth)
+}
 
 export const update = (input) => {
   const value = extractKeyAndValue(input);
