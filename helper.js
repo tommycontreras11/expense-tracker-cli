@@ -114,11 +114,12 @@ const replaceSlashAndQuote = (value) => {
     : value;
 }
 
-const extractKeyAndValue = (input) => {
+const extractKeyAndValue = (input, hasToValidateBudget = false) => {
   const map = new Map();
   let index = 0;
 
   let count = 0;
+  let isBudgetHigher = false
 
   let properties = input.filter((i) => i.startsWith("--"));
   properties = properties.map((p) => p.replace("--", ""));
@@ -131,7 +132,19 @@ const extractKeyAndValue = (input) => {
     ({ values, i } = getPropertyAndValue(input, i, values));
   }
 
-  for (let i = 0; i < values.length; i++) {
+  if (hasToValidateBudget) {
+    const amountIndex = properties.findIndex((i) => i == "amount")
+    const amount = values[amountIndex]
+
+    const month = new Date().getMonth() + 1
+    
+    isBudgetHigher = validateBudget(month, amount)
+  }
+
+  if (isBudgetHigher) {
+    console.log("The total amount is higher than the budget")
+  } else {
+    for (let i = 0; i < values.length; i++) {
     ({ index, count } = saveExpenseTrackerOnMap(
       map,
       values[i],
@@ -142,12 +155,15 @@ const extractKeyAndValue = (input) => {
       expenseTrackerData.length + 1,
     ));
   }
+  }
 
   return map;
 };
 
-export const add = (input) => {
-  const propertyAndValue = extractKeyAndValue(input);
+export const add = (input, validateBudget) => {
+  const propertyAndValue = extractKeyAndValue(input, validateBudget);
+
+  if (propertyAndValue.size == 0) return
 
   propertyAndValue.forEach(
     (value) =>
@@ -183,18 +199,26 @@ export const summary = async (input) => {
   if (value.size > 0) {
     value.forEach((i) => (month = i.month));
 
-    summary = summary.filter(
-      (s) =>
-        s.date.split("-")[1] == (month > 9 ? month : `0${month}`) &&
-        s.date.split("-")[0] == new Date().getFullYear(),
-    );
+    summary = filterExpenseTrackerByMonthAndYear(summary, month)
   }
 
-  total = summary.reduce((acc, current) => acc + current.amount, 0);
+  total = sumAmount(summary)
   console.log(
     `Total expenses${value.size > 0 ? ` for ${months.get(month)}` : ""}: $${total}`,
   );
 };
+
+const sumAmount = (expenseTracker) => {
+  return expenseTracker.reduce((acc, current) => acc + current.amount, 0);
+}
+
+const filterExpenseTrackerByMonthAndYear = (expenseTracker, month) => {
+  return expenseTracker.filter(
+      (s) =>
+        s.date.split("-")[1] == (month > 9 ? month : `0${month}`) &&
+        s.date.split("-")[0] == new Date().getFullYear(),
+    );
+}
 
 export const filter = async (input) => {
   const value = extractKeyAndValue(input);
@@ -224,7 +248,7 @@ export const budget = (input) => {
   budgetFilteredByMonth.budget += amount
 }
 
-export const filterBudgetByMonth = (input) => {
+export const filterBudgetByMonth = (input, returnValues = false) => {
   const value = extractKeyAndValue(input);
   let month = 0;
 
@@ -233,11 +257,25 @@ export const filterBudgetByMonth = (input) => {
   });
 
   let budgetFilteredByMonth = budgets.filter((item) => item.month == month)
+
+  if (returnValues) return budgetFilteredByMonth
   console.log(budgetFilteredByMonth)
 }
 
-export const update = (input) => {
-  const value = extractKeyAndValue(input);
+const validateBudget = (month, amount) => {
+  let budgetFilteredByMonth = budgets.find((item) => item.month == months.get(month))
+
+  let summary = [...expenseTrackerData];
+  
+  summary = filterExpenseTrackerByMonthAndYear(summary, month)
+  let total = sumAmount(summary) + amount
+
+  if (total > budgetFilteredByMonth.budget) return true
+  return false
+}
+
+export const update = (input, validateBudget) => {
+  const value = extractKeyAndValue(input, validateBudget);
   let id = 0;
   let amount = 0;
   let description = "";

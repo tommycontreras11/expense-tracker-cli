@@ -19,7 +19,7 @@ const main = async () => {
           delete: remove
         };
 
-        await handler[action]?.(extractInput(data).slice(2));
+        await handler[action]?.(extractInput(data).slice(2), (action == "add" || action == "update") ? true : false);
 
         break;
       case "exit":
