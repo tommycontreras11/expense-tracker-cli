@@ -56,6 +56,10 @@ const saveInfoInFile = async (data) => {
 };
 
 const getPropertyAndValue = (input, index, values) => {
+  console.log("input: ", input)
+  console.log("index: ", index)
+  console.log("values: ", values)
+
   let start = input[index].startsWith('"');
   let end = input[index].endsWith('"');
 
@@ -121,10 +125,18 @@ const extractKeyAndValue = (input, hasToValidateBudget = false) => {
   let count = 0;
   let isBudgetHigher = false
 
-  let properties = input.filter((i) => i.startsWith("--"));
-  properties = properties.map((p) => p.replace("--", ""));
+  let properties = input?.filter((i) => i?.startsWith("--"));
+  properties = properties?.map((p) => p?.replace("--", ""));
 
-  input = input.filter((i) => i.startsWith("--") == false);
+  if(properties?.length == 0) {
+    console.log("No properties found")
+  }
+
+  input = input?.filter((i) => i?.startsWith("--") == false);
+
+  if(input?.length == 0) {
+    console.log("No values found")
+  }
 
   let values = [];
 
