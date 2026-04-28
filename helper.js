@@ -182,6 +182,25 @@ export const add = (input, validateBudget) => {
   console.log(`Expense added successfully (ID: ${expenseTrackerData.length})`);
 };
 
+export const exportCSV = async () => {
+  const data = objectsToRows(expenseTrackerData)
+  const csvContent = data.map(row => row.join(",")).join("\n")
+
+  await fs.writeFile("data.csv", csvContent, "utf8")
+}
+
+function objectsToRows(data) {
+  if (!data.length) return [];
+
+  const headers = Object.keys(data[0])
+
+  const rows = data.map(obj =>
+    headers.map(key => obj[key])
+  );
+
+  return [headers, ...rows];
+}
+
 export const list = async () => {
   console.table(toPascalCaseKeys(expenseTrackerData));
 };

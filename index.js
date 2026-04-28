@@ -1,4 +1,4 @@
-import { extractInput, add, budget, list, summary, filter, filterBudgetByMonth, update, remove, createAndReturnDataFileIfNotExists } from "./helper.js"
+import { extractInput, add, budget, list, summary, filter, filterBudgetByMonth, update, remove, exportCSV, createAndReturnDataFileIfNotExists } from "./helper.js"
 
 const main = async () => {
   process.stdin.on("data", async (data) => {
@@ -16,7 +16,8 @@ const main = async () => {
           filter: filter,
           filterBudget: filterBudgetByMonth,
           update: update,
-          delete: remove
+          delete: remove,
+          exportCSV: exportCSV
         };
 
         await handler[action]?.(extractInput(data).slice(2), (action == "add" || action == "update") ? true : false);
