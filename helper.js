@@ -1,7 +1,7 @@
 import console from "console";
 import fs from "fs/promises";
 
-let expenseTrackerData = [];
+let budgets = [];
 const FILE_PATH = "./expense-tracker.json";
 
 const months = new Map([
@@ -19,55 +19,6 @@ const months = new Map([
   [12, "December"],
 ]);
 
-// const validationOperators = (a, b, operator) => {
-
-//   switch(operator) {
-//     case ">":
-//       if(a > b) return true
-//       break
-//     case "<":
-//       if(a < b) return true
-//       break
-//     case "===":
-//       if(a == b) return true
-//       break
-//     case "!==":
-//       if(a != b) return true
-//       break
-//   }
-// }
-
-// const invalidInputRules = [null, "", undefined];
-
-// const validateRule = (
-//   value,
-//   validationOperator,
-//   invalidInputRule,
-//   valueToCompare,
-//   properties,
-//   messageObject,
-// ) => {
-//   let operator = validationOperators[validationOperator];
-
-//   if (!operator) {
-//     messageObject.error = true;
-//     messageObject.message = `The ${properties[i]} should not be negative`;
-//     return messageObject;
-//   }
-
-//   let inputRule = invalidInputRules[invalidInputRule];
-//   if (!operator) {
-//     messageObject.error = true;
-//     messageObject.message = `The ${properties[i]} should not be negative`;
-//     return messageObject;
-//   }
-
-//   if(value + operator + inputRule) {
-
-//   }
-// };
-
-let budgets = [];
 months.forEach((value) => {
   budgets.push({ month: value, budget: 0 });
 });
@@ -84,26 +35,51 @@ const toPascalCaseKeys = (data) => {
   });
 };
 
+/*
+ Split input into arguments while preserving quoted strings.
+ - Matches sequences without spaces or quotes (e.g. --amount, 20)
+ - OR matches text inside double quotes (e.g. "hello world")
+ - Keeps quoted values as a single token
+*/
 export const extractInput = (data) => {
   const matches = data.toString().match(/(?:[^\s"]+|"[^"]*")+/g) || [];
 
   return matches.map((arg) => arg.replace(/^"(.*)"$/, "$1"));
 };
 
-export const createAndReturnDataFileIfNotExists = async () => {
-  let data = "";
-
+const readData = async () => {
   try {
-    data = await fs.readFile(FILE_PATH, "utf8");
-  } catch (error) {
-    if (error.code == "ENOENT") await saveInfoInFile([]);
-  }
+    const data = await fs.readFile(FILE_PATH, "utf8");
 
-  if (data) expenseTrackerData = JSON.parse(data);
+    if (!data.trim()) return [];
+
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+
+    // handle corrupted JSON
+    try {
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  }
 };
 
-const saveInfoInFile = async (data) => {
-  await fs.writeFile(FILE_PATH, JSON.stringify(data), "utf8");
+const writeData = async (data) => {
+  await fs.writeFile(
+    FILE_PATH,
+    JSON.stringify(data, null, 2),
+    "utf8"
+  );
+};
+
+export const initDataFile = async () => {
+  try {
+    await fs.access(FILE_PATH);
+  } catch {
+    await writeData([]);
+  }
 };
 
 const getPropertyAndValue = (input, properties, index, values) => {
@@ -113,7 +89,7 @@ const getPropertyAndValue = (input, properties, index, values) => {
     const next = input[index + 1];
     properties.push(input[index]);
 
-    if (next == undefined || next == "" || next.startsWith("--")) {
+    if (next == null || next == "null" || next === "" || next.startsWith("--")) {
       values.push(null);
       index += 1;
     }
@@ -143,11 +119,9 @@ const saveExpenseTrackerOnMap = (
   countProperties,
   id,
 ) => {
-  const finalValue = replaceSlashAndQuote(value);
-
   if (map.has(index)) {
     const valueAtIndex = map.get(index);
-    valueAtIndex[property] = finalValue;
+    valueAtIndex[property] = value;
 
     if (count == countProperties) {
       index = 0;
@@ -155,7 +129,7 @@ const saveExpenseTrackerOnMap = (
     }
   } else {
     map.set(id, {
-      [property]: finalValue,
+      [property]: value,
     });
     index = id;
     count += 1;
@@ -167,15 +141,7 @@ const saveExpenseTrackerOnMap = (
   };
 };
 
-const replaceSlashAndQuote = (value) => {
-  return isNaN(value)
-    ? value.includes('\"')
-      ? value.replaceAll('\"', "")
-      : value
-    : value;
-};
-
-const extractKeyAndValue = (
+const extractKeyAndValue = async (
   input,
   hasToValidateBudget = false,
   isFieldRequired = false,
@@ -232,7 +198,7 @@ const extractKeyAndValue = (
 
     const month = new Date().getMonth() + 1;
 
-    isBudgetHigher = validateBudget(month, amount);
+    isBudgetHigher = await validateBudget(month, amount);
   }
 
   if (isBudgetHigher) {
@@ -244,7 +210,11 @@ const extractKeyAndValue = (
       map,
     };
   } else {
+    let nextId = 0
     for (let i = 0; i < values.length; i++) {
+      let expenseTrackerData = await readData();
+      nextId = expenseTrackerData.length + 1;
+
       ({ index, count } = saveExpenseTrackerOnMap(
         map,
         values[i],
@@ -252,7 +222,7 @@ const extractKeyAndValue = (
         index,
         count,
         properties.length,
-        expenseTrackerData.length + 1,
+        nextId,
       ));
     }
   }
@@ -264,8 +234,8 @@ const extractKeyAndValue = (
   };
 };
 
-export const add = (input, hasToValidateBudget) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+export const add = async (input, hasToValidateBudget) => {
+  const { error, message, properties, map } = await await extractKeyAndValue(
     input,
     hasToValidateBudget,
     true,
@@ -278,26 +248,28 @@ export const add = (input, hasToValidateBudget) => {
 
   const now = new Date();
 
+  let expenseTrackerData = await readData();
+  const nextId = expenseTrackerData.length + 1
+
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   map.forEach(
     (value) =>
-      (expenseTrackerData = [
-        ...expenseTrackerData,
-        {
+      (expenseTrackerData.push({
           ...value,
-          id: expenseTrackerData.length + 1,
+          id: nextId,
           date,
-        },
-      ]),
+        })),
   );
 
-  saveInfoInFile(expenseTrackerData);
+  await writeData(expenseTrackerData);
 
   console.log(`Expense added successfully (ID: ${expenseTrackerData.length})`);
 };
 
 export const exportCSV = async () => {
+  const expenseTrackerData = await readData();
+  
   const data = objectsToRows(expenseTrackerData);
   const csvContent = data.map((row) => row.join(",")).join("\n");
 
@@ -315,11 +287,13 @@ function objectsToRows(data) {
 }
 
 export const list = async () => {
+  const expenseTrackerData = await readData();
+
   console.table(toPascalCaseKeys(expenseTrackerData));
 };
 
 export const summary = async (input) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+  const { error, message, properties, map } = await extractKeyAndValue(
     input,
     false,
     true,
@@ -328,10 +302,10 @@ export const summary = async (input) => {
   let total = 0;
   let month = 0;
 
-  await createAndReturnDataFileIfNotExists();
+  const expenseTrackerData = await readData();
 
-  let summary = [];
-  summary = [...expenseTrackerData];
+  let summary = [...expenseTrackerData];
+  summary = summary.filter((item) => item.amount != "null")
 
   if (properties.length > 0 && error) {
     console.log(message);
@@ -362,7 +336,7 @@ const filterExpenseTrackerByMonthAndYear = (expenseTracker, month) => {
 };
 
 export const filter = async (input) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+  const { error, message, properties, map } = await extractKeyAndValue(
     input,
     false,
     true,
@@ -376,16 +350,17 @@ export const filter = async (input) => {
   let amount = "";
 
   map.forEach((item) => (amount = item.amount));
-  await createAndReturnDataFileIfNotExists();
+  const expenseTrackerData = await readData();
+
   let expenseTracker = [...expenseTrackerData];
 
   let dataFiltered = expenseTracker.filter((item) => item.amount < amount);
 
-  console.log(dataFiltered);
+  console.table(dataFiltered);
 };
 
-export const budget = (input) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+export const budget = async (input) => {
+  const { error, message, properties, map } = await extractKeyAndValue(
     input,
     false,
     true,
@@ -410,8 +385,8 @@ export const budget = (input) => {
   console.log(`Budget set for ${month} with amount ${amount}`);
 };
 
-export const filterBudgetByMonth = (input, returnValues = false) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+export const filterBudgetByMonth = async (input, returnValues = false) => {
+  const { error, message, properties, map } = await extractKeyAndValue(
     input,
     false,
     true,
@@ -433,12 +408,14 @@ export const filterBudgetByMonth = (input, returnValues = false) => {
   console.log(budgetFilteredByMonth);
 };
 
-const validateBudget = (month, amount) => {
+const validateBudget = async (month, amount) => {
   let budgetFilteredByMonth = budgets.find(
     (item) => item.month == months.get(month),
   );
 
   if (budgetFilteredByMonth.budget == 0) return false;
+
+  const expenseTrackerData = await readData();
 
   let summary = [...expenseTrackerData];
 
@@ -449,8 +426,8 @@ const validateBudget = (month, amount) => {
   return false;
 };
 
-export const update = (input, hasToValidateBudget) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+export const update = async (input, hasToValidateBudget) => {
+  const { error, message, properties, map } = await extractKeyAndValue(
     input,
     hasToValidateBudget,
     true,
@@ -470,12 +447,20 @@ export const update = (input, hasToValidateBudget) => {
     amount = item?.amount;
     description = item?.description;
   });
+
+  let expenseTrackerData = await readData();
+
+  let index = expenseTrackerData.findIndex((item) => item.id == id);
+
+  if(index == -1) {
+    console.log("Id not found, please provide a valid one");
+    return;
+  }
+
   if (!amount && !description) {
     console.log("At least one property and value must be provided");
     return;
   }
-
-  let index = expenseTrackerData.findIndex((item) => item.id == id);
 
   if (amount) {
     expenseTrackerData[index].amount = amount;
@@ -487,14 +472,14 @@ export const update = (input, hasToValidateBudget) => {
 
   if (amount || description) {
     expenseTrackerData[index].date = new Date().toISOString().split("T")[0];
-    saveInfoInFile(expenseTrackerData);
+    writeData(expenseTrackerData);
 
     console.log(`Expense updated successfully (ID: ${id})`);
   }
 };
 
-export const remove = (input) => {
-  const { error, message, properties, map } = extractKeyAndValue(
+export const remove = async (input) => {
+  const { error, message, properties, map } = await extractKeyAndValue(
     input,
     false,
     true,
@@ -509,8 +494,17 @@ export const remove = (input) => {
 
   map.forEach((i) => (id = i.id));
 
+  let expenseTrackerData = await readData();
+
+  let index = expenseTrackerData.findIndex((item) => item.id == id);
+
+  if(index == -1) {
+    console.log("Id not found, please provide a valid one");
+    return;
+  }
+
   expenseTrackerData = expenseTrackerData.filter((e) => e.id != id);
-  saveInfoInFile(expenseTrackerData);
+  writeData(expenseTrackerData);
   console.log(`Expense deleted successfully (ID: ${id})`);
 };
 
