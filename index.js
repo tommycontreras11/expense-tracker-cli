@@ -1,4 +1,4 @@
-import { extractInput, add, budget, list, summary, filter, filterBudgetByMonth, update, remove, exportCSV, createAndReturnDataFileIfNotExists } from "./helper.js"
+import { extractInput, add, budget, list, summary, filter, filterBudgetByMonth, update, remove, exportCSV, createAndReturnDataFileIfNotExists, validateInput } from "./helper.js"
 
 const main = async () => {
   process.stdin.on("data", async (data) => {

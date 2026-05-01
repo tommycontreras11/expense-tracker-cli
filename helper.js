@@ -1,3 +1,4 @@
+import console from "console";
 import fs from "fs/promises";
 
 let expenseTrackerData = [];
@@ -18,10 +19,10 @@ const months = new Map([
   [12, "December"],
 ]);
 
-let budgets = []
+let budgets = [];
 months.forEach((value) => {
-  budgets.push({ month: value, budget: 0 })
-})
+  budgets.push({ month: value, budget: 0 });
+});
 
 const toPascalCase = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
@@ -55,25 +56,42 @@ const saveInfoInFile = async (data) => {
   await fs.writeFile(FILE_PATH, JSON.stringify(data), "utf8");
 };
 
-const getPropertyAndValue = (input, index, values) => {
-  console.log("input: ", input)
-  console.log("index: ", index)
-  console.log("values: ", values)
+const getPropertyAndValue = (input, properties, index, values) => {
+  let property = input[index].startsWith("--");
 
-  let start = input[index].startsWith('"');
-  let end = input[index].endsWith('"');
+  if (property) {
+    properties.push(input[index]);
 
-  if (start && end) {
-    values.push(input[index]);
-  } else if (start) {
-    values.push(input[index] + " " + input[index + 1]);
-    index = index + 1;
+    const next = input[index + 1];
+
+    if (next == undefined || next.startsWith("--")) {
+      values.push(null);
+      index += 1;
+    }
   } else {
-    values.push(parseInt(input[index]));
+    let start = input[index].startsWith('"');
+    let end = input[index].endsWith('"');
+
+    if (start && end) {
+      values.push(input[index]);
+    } else if (start) {
+      for (let j = index + 1; j < input.length; j++) {
+        const finish = input[j].endsWith('"');
+
+        if (finish) {
+          values.push(input.splice(index, j)).join(" ");
+          index = index + j;
+          break;
+        }
+      }
+    } else {
+      values.push(parseInt(input[index]));
+    }
   }
 
   return {
     values,
+    properties,
     i: index,
   };
 };
@@ -87,11 +105,12 @@ const saveExpenseTrackerOnMap = (
   countProperties,
   id,
 ) => {
-  const finalValue = replaceSlashAndQuote(value)
+  const finalValue = replaceSlashAndQuote(value);
 
   if (map.has(index)) {
     const valueAtIndex = map.get(index);
     valueAtIndex[property] = finalValue;
+
     if (count == countProperties) {
       index = 0;
       count = 0;
@@ -116,75 +135,123 @@ const replaceSlashAndQuote = (value) => {
       ? value.replaceAll('\"', "")
       : value
     : value;
-}
+};
 
-const extractKeyAndValue = (input, hasToValidateBudget = false) => {
+const extractKeyAndValue = (
+  input,
+  hasToValidateBudget = false,
+  isFieldRequired = false,
+) => {
   const map = new Map();
   let index = 0;
 
   let count = 0;
-  let isBudgetHigher = false
+  let isBudgetHigher = false;
 
-  let properties = input?.filter((i) => i?.startsWith("--"));
-  properties = properties?.map((p) => p?.replace("--", ""));
+  let properties = [];
 
-  if(properties?.length == 0) {
-    console.log("No properties found")
-  }
-
-  input = input?.filter((i) => i?.startsWith("--") == false);
-
-  if(input?.length == 0) {
-    console.log("No values found")
-  }
+  let messageObject = {
+    error: false,
+    message: "",
+  };
 
   let values = [];
 
   for (let i = 0; i < input.length; i++) {
-    ({ values, i } = getPropertyAndValue(input, i, values));
+    ({ values, properties, i } = getPropertyAndValue(
+      input,
+      properties,
+      i,
+      values,
+    ));
   }
 
-  if (hasToValidateBudget) {
-    const amountIndex = properties.findIndex((i) => i == "amount")
-    const amount = values[amountIndex]
+  if (isFieldRequired) {
+    if (properties.length == 0) {
+      messageObject.error = true;
+      messageObject.message = "Properties are required";
+      return {
+        ...messageObject,
+        properties,
+        map,
+      };
+    }
+  }
 
-    const month = new Date().getMonth() + 1
-    
-    isBudgetHigher = validateBudget(month, amount)
+  properties = properties.map((p) => p.replace("--", ""));
+
+  let { error, message } = validateInput(properties, values, messageObject);
+
+  if (error && isFieldRequired)
+    return {
+      error,
+      message,
+      properties,
+      map,
+    };
+
+  if (hasToValidateBudget) {
+    const amountIndex = properties.findIndex((i) => i == "amount");
+    const amount = values[amountIndex];
+
+    const month = new Date().getMonth() + 1;
+
+    isBudgetHigher = validateBudget(month, amount);
   }
 
   if (isBudgetHigher) {
-    console.log("The total amount is higher than the budget")
+    messageObject.error = true;
+    messageObject.message = "The total amount is higher than the budget";
+    return {
+      ...messageObject,
+      properties,
+      map,
+    };
   } else {
     for (let i = 0; i < values.length; i++) {
-    ({ index, count } = saveExpenseTrackerOnMap(
-      map,
-      values[i],
-      properties[i],
-      index,
-      count,
-      properties.length,
-      expenseTrackerData.length + 1,
-    ));
-  }
+      ({ index, count } = saveExpenseTrackerOnMap(
+        map,
+        values[i],
+        properties[i],
+        index,
+        count,
+        properties.length,
+        expenseTrackerData.length + 1,
+      ));
+    }
   }
 
-  return map;
+  return {
+    ...messageObject,
+    properties,
+    map,
+  };
 };
 
-export const add = (input, validateBudget) => {
-  const propertyAndValue = extractKeyAndValue(input, validateBudget);
+export const add = (input, hasToValidateBudget) => {
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    hasToValidateBudget,
+    true,
+  );
 
-  if (propertyAndValue.size == 0) return
+  if ((properties.length == 0 || properties.length > 0) && error) {
+    console.log(message);
+    return;
+  }
 
-  propertyAndValue.forEach(
+  const now = new Date();
+
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  map.forEach(
     (value) =>
       (expenseTrackerData = [
         ...expenseTrackerData,
         {
           ...value,
           id: expenseTrackerData.length + 1,
-          date: new Date().toISOString().split("T")[0],
+          date,
         },
       ]),
   );
@@ -195,20 +262,18 @@ export const add = (input, validateBudget) => {
 };
 
 export const exportCSV = async () => {
-  const data = objectsToRows(expenseTrackerData)
-  const csvContent = data.map(row => row.join(",")).join("\n")
+  const data = objectsToRows(expenseTrackerData);
+  const csvContent = data.map((row) => row.join(",")).join("\n");
 
-  await fs.writeFile("data.csv", csvContent, "utf8")
-}
+  await fs.writeFile("data.csv", csvContent, "utf8");
+};
 
 function objectsToRows(data) {
   if (!data.length) return [];
 
-  const headers = Object.keys(data[0])
+  const headers = Object.keys(data[0]);
 
-  const rows = data.map(obj =>
-    headers.map(key => obj[key])
-  );
+  const rows = data.map((obj) => headers.map((key) => obj[key]));
 
   return [headers, ...rows];
 }
@@ -218,7 +283,12 @@ export const list = async () => {
 };
 
 export const summary = async (input) => {
-  const value = extractKeyAndValue(input);
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    false,
+    true,
+  );
+
   let total = 0;
   let month = 0;
 
@@ -227,110 +297,220 @@ export const summary = async (input) => {
   let summary = [];
   summary = [...expenseTrackerData];
 
-  if (value.size > 0) {
-    value.forEach((i) => (month = i.month));
-
-    summary = filterExpenseTrackerByMonthAndYear(summary, month)
+  if (properties.length > 0 && error) {
+    console.log(message);
   }
 
-  total = sumAmount(summary)
+  if (map.size > 0) {
+    map.forEach((i) => (month = i.month));
+
+    summary = filterExpenseTrackerByMonthAndYear(summary, month);
+  }
+
+  total = sumAmount(summary);
   console.log(
-    `Total expenses${value.size > 0 ? ` for ${months.get(month)}` : ""}: $${total}`,
+    `Total expenses${map.size > 0 ? ` for ${months.get(month)}` : ""}: $${total}`,
   );
 };
 
 const sumAmount = (expenseTracker) => {
   return expenseTracker.reduce((acc, current) => acc + current.amount, 0);
-}
+};
 
 const filterExpenseTrackerByMonthAndYear = (expenseTracker, month) => {
   return expenseTracker.filter(
-      (s) =>
-        s.date.split("-")[1] == (month > 9 ? month : `0${month}`) &&
-        s.date.split("-")[0] == new Date().getFullYear(),
-    );
-}
+    (s) =>
+      s.date.split("-")[1] == (month > 9 ? month : `0${month}`) &&
+      s.date.split("-")[0] == new Date().getFullYear(),
+  );
+};
 
 export const filter = async (input) => {
-  const value = extractKeyAndValue(input);
-  let category = "";
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    false,
+    true,
+  );
 
-  value.forEach((item) => (category = item.category));
+  if ((properties.length == 0 || properties.length > 0) && error) {
+    console.log(message);
+    return;
+  }
+
+  let amount = "";
+
+  map.forEach((item) => (amount = item.amount));
   await createAndReturnDataFileIfNotExists();
   let expenseTracker = [...expenseTrackerData];
 
   let dataFiltered = expenseTracker.filter(
-    (item) => item.category.toLowerCase() == category.toLowerCase(),
+    (item) => item.amount < amount,
   );
 
   console.log(dataFiltered);
 };
 
 export const budget = (input) => {
-  const value = extractKeyAndValue(input);
-  let month, amount = 0;
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    false,
+    true,
+  );
 
-  value.forEach((item) => {
-    month = months.get(item.month)
-    amount = item.amount
+  if ((properties.length == 0 || properties.length > 0) && error) {
+    console.log(message);
+    return;
+  }
+
+  let month,
+    amount = 0;
+
+  map.forEach((item) => {
+    month = months.get(item.month);
+    amount = item.amount;
   });
 
-  let budgetFilteredByMonth = budgets.find((item) => item.month == month)
-  budgetFilteredByMonth.budget += amount
-}
+  let budgetFilteredByMonth = budgets.find((item) => item.month == month);
+  budgetFilteredByMonth.budget += amount;
+
+  console.log(`Budget set for ${month} with amount ${amount}`);
+};
 
 export const filterBudgetByMonth = (input, returnValues = false) => {
-  const value = extractKeyAndValue(input);
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    false,
+    true,
+  );
+
+  if ((properties.length == 0 || properties.length > 0) && error) {
+    console.log(message);
+    return;
+  }
   let month = 0;
 
-  value.forEach((item) => {
-    month = months.get(item.month)
+  map.forEach((item) => {
+    month = months.get(item.month);
   });
 
-  let budgetFilteredByMonth = budgets.filter((item) => item.month == month)
+  let budgetFilteredByMonth = budgets.filter((item) => item.month == month);
 
-  if (returnValues) return budgetFilteredByMonth
-  console.log(budgetFilteredByMonth)
-}
+  if (returnValues) return budgetFilteredByMonth;
+  console.log(budgetFilteredByMonth);
+};
 
 const validateBudget = (month, amount) => {
-  let budgetFilteredByMonth = budgets.find((item) => item.month == months.get(month))
+  let budgetFilteredByMonth = budgets.find(
+    (item) => item.month == months.get(month),
+  );
+
+  if (budgetFilteredByMonth.budget == 0) return false;
 
   let summary = [...expenseTrackerData];
-  
-  summary = filterExpenseTrackerByMonthAndYear(summary, month)
-  let total = sumAmount(summary) + amount
 
-  if (total > budgetFilteredByMonth.budget) return true
-  return false
-}
+  summary = filterExpenseTrackerByMonthAndYear(summary, month);
+  let total = sumAmount(summary) + amount;
 
-export const update = (input, validateBudget) => {
-  const value = extractKeyAndValue(input, validateBudget);
+  if (total > budgetFilteredByMonth.budget) return true;
+  return false;
+};
+
+export const update = (input, hasToValidateBudget) => {
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    hasToValidateBudget,
+    true,
+  );
+
+  if ((properties.length == 0 || properties.length > 0) && error) {
+    console.log(message);
+    return;
+  }
+
   let id = 0;
   let amount = 0;
   let description = "";
 
-  value.forEach((item) => {
+  map.forEach((item) => {
     id = item.id;
-    amount = item.amount;
-    description = item.description;
+    amount = item?.amount;
+    description = item?.description;
   });
+  if (!amount && !description) {
+    console.log("At least one property and value must be provided");
+    return;
+  }
 
   let index = expenseTrackerData.findIndex((item) => item.id == id);
-  expenseTrackerData[index].amount = amount;
-  expenseTrackerData[index].description = description;
-  expenseTrackerData[index].date = new Date().toISOString().split("T")[0];
 
-  saveInfoInFile(expenseTrackerData);
+  if (amount) {
+    expenseTrackerData[index].amount = amount;
+  }
+
+  if (description) {
+    expenseTrackerData[index].description = description;
+  }
+
+  if (amount || description) {
+    expenseTrackerData[index].date = new Date().toISOString().split("T")[0];
+    saveInfoInFile(expenseTrackerData);
+
+    console.log(`Expense updated successfully (ID: ${id})`);
+  }
 };
 
 export const remove = (input) => {
-  const value = extractKeyAndValue(input);
+  const { error, message, properties, map } = extractKeyAndValue(
+    input,
+    false,
+    true,
+  );
+
+  if ((properties.length == 0 || properties.length > 0) && error) {
+    console.log(message);
+    return;
+  }
+
   let id = 0;
 
-  value.forEach((i) => (id = i.id));
+  map.forEach((i) => (id = i.id));
 
   expenseTrackerData = expenseTrackerData.filter((e) => e.id != id);
   saveInfoInFile(expenseTrackerData);
+  console.log(`Expense deleted successfully (ID: ${id})`);
+};
+
+export const validateInput = (properties, values, messageObject) => {
+  let index = 0;
+  let i = 0;
+
+  do {
+    let value = values[i];
+
+    if (
+      value != undefined &&
+      value != null &&
+      !isNaN(value) &&
+      parseInt(value) < 0
+    ) {
+      messageObject.error = true;
+      messageObject.message = `The ${properties[i]} should not be negative`;
+      return messageObject;
+    }
+
+    if (
+      value == undefined ||
+      value == null ||
+      value == "" ||
+      value == '""' ||
+      value.length == 0
+    ) {
+      messageObject.error = true;
+      messageObject.message = `The ${properties[i]} should not be empty`;
+      return messageObject;
+    }
+
+    i++;
+  } while (i < values.length);
+  return messageObject;
 };
