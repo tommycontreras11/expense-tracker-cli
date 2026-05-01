@@ -19,6 +19,54 @@ const months = new Map([
   [12, "December"],
 ]);
 
+// const validationOperators = (a, b, operator) => {
+
+//   switch(operator) {
+//     case ">":
+//       if(a > b) return true
+//       break
+//     case "<":
+//       if(a < b) return true
+//       break
+//     case "===":
+//       if(a == b) return true
+//       break
+//     case "!==":
+//       if(a != b) return true
+//       break
+//   }
+// }
+
+// const invalidInputRules = [null, "", undefined];
+
+// const validateRule = (
+//   value,
+//   validationOperator,
+//   invalidInputRule,
+//   valueToCompare,
+//   properties,
+//   messageObject,
+// ) => {
+//   let operator = validationOperators[validationOperator];
+
+//   if (!operator) {
+//     messageObject.error = true;
+//     messageObject.message = `The ${properties[i]} should not be negative`;
+//     return messageObject;
+//   }
+
+//   let inputRule = invalidInputRules[invalidInputRule];
+//   if (!operator) {
+//     messageObject.error = true;
+//     messageObject.message = `The ${properties[i]} should not be negative`;
+//     return messageObject;
+//   }
+
+//   if(value + operator + inputRule) {
+
+//   }
+// };
+
 let budgets = [];
 months.forEach((value) => {
   budgets.push({ month: value, budget: 0 });
@@ -37,7 +85,9 @@ const toPascalCaseKeys = (data) => {
 };
 
 export const extractInput = (data) => {
-  return data.toString().trim().split(" ");
+  const matches = data.toString().match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+
+  return matches.map((arg) => arg.replace(/^"(.*)"$/, "$1"));
 };
 
 export const createAndReturnDataFileIfNotExists = async () => {
@@ -60,30 +110,18 @@ const getPropertyAndValue = (input, properties, index, values) => {
   let property = input[index].startsWith("--");
 
   if (property) {
+    const next = input[index + 1];
     properties.push(input[index]);
 
-    const next = input[index + 1];
-
-    if (next == undefined || next.startsWith("--")) {
+    if (next == undefined || next == "" || next.startsWith("--")) {
       values.push(null);
       index += 1;
     }
   } else {
-    let start = input[index].startsWith('"');
-    let end = input[index].endsWith('"');
+    const value = input[index];
 
-    if (start && end) {
+    if (isNaN(input[index])) {
       values.push(input[index]);
-    } else if (start) {
-      for (let j = index + 1; j < input.length; j++) {
-        const finish = input[j].endsWith('"');
-
-        if (finish) {
-          values.push(input.splice(index, j)).join(" ");
-          index = index + j;
-          break;
-        }
-      }
     } else {
       values.push(parseInt(input[index]));
     }
@@ -143,19 +181,17 @@ const extractKeyAndValue = (
   isFieldRequired = false,
 ) => {
   const map = new Map();
-  let index = 0;
-
-  let count = 0;
+  let index = 0,
+    count = 0;
   let isBudgetHigher = false;
 
-  let properties = [];
+  let properties = [],
+    values = [];
 
   let messageObject = {
     error: false,
     message: "",
   };
-
-  let values = [];
 
   for (let i = 0; i < input.length; i++) {
     ({ values, properties, i } = getPropertyAndValue(
@@ -343,9 +379,7 @@ export const filter = async (input) => {
   await createAndReturnDataFileIfNotExists();
   let expenseTracker = [...expenseTrackerData];
 
-  let dataFiltered = expenseTracker.filter(
-    (item) => item.amount < amount,
-  );
+  let dataFiltered = expenseTracker.filter((item) => item.amount < amount);
 
   console.log(dataFiltered);
 };
@@ -487,26 +521,15 @@ export const validateInput = (properties, values, messageObject) => {
   do {
     let value = values[i];
 
-    if (
-      value != undefined &&
-      value != null &&
-      !isNaN(value) &&
-      parseInt(value) < 0
-    ) {
+    if (value == null) {
       messageObject.error = true;
-      messageObject.message = `The ${properties[i]} should not be negative`;
+      messageObject.message = `The ${properties[i]} should not be empty`;
       return messageObject;
     }
 
-    if (
-      value == undefined ||
-      value == null ||
-      value == "" ||
-      value == '""' ||
-      value.length == 0
-    ) {
+    if (parseInt(value) < 0) {
       messageObject.error = true;
-      messageObject.message = `The ${properties[i]} should not be empty`;
+      messageObject.message = `The ${properties[i]} should not be negative`;
       return messageObject;
     }
 
